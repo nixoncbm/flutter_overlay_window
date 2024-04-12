@@ -1,10 +1,12 @@
 package flutter.overlay.window.flutter_overlay_window;
 
 import android.app.Activity;
+import android.app.AppOpsManager;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Binder;
 import android.os.Build;
 import android.provider.Settings;
 import android.service.notification.StatusBarNotification;
@@ -13,6 +15,8 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationManagerCompat;
+
+import java.lang.reflect.Method;
 
 import io.flutter.FlutterInjector;
 import io.flutter.embedding.engine.FlutterEngine;
@@ -37,6 +41,8 @@ public class FlutterOverlayWindowPlugin implements
     private MethodChannel channel;
     private Context context;
     private Activity mActivity;
+
+    private ActivityPluginBinding activityBinding;
     private BasicMessageChannel<Object> messenger;
     private Result pendingResult;
     final int REQUEST_CODE_FOR_OVERLAY_PERMISSION = 1248;
@@ -109,10 +115,44 @@ public class FlutterOverlayWindowPlugin implements
                 result.success(true);
             }
             return;
+        } else if (call.method.equals("isShowOnLockScreenPermissionEnable")) {
+            result.success(isShowOnLockScreenPermissionEnable());
+            return;
+        } else if (call.method.equals("openXiaomiOtherSettings")) {
+            openXiaomiOtherSettings();
+            result.success(null);
+            return;
         } else {
             result.notImplemented();
         }
 
+    }
+
+    private boolean isShowOnLockScreenPermissionEnable() {
+        try {
+            AppOpsManager manager = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
+            Method method = AppOpsManager.class.getDeclaredMethod(
+                    "checkOpNoThrow",
+                    int.class,
+                    int.class,
+                    String.class
+            );
+            int result = (int) method.invoke(manager, 10020, Binder.getCallingUid(), context.getPackageName());
+            return AppOpsManager.MODE_ALLOWED == result;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    private void openXiaomiOtherSettings(){
+        Intent intent = new Intent("miui.intent.action.APP_PERM_EDITOR");
+        intent.setClassName(
+                "com.miui.securitycenter",
+                "com.miui.permcenter.permissions.PermissionsEditorActivity"
+        );
+        intent.putExtra("extra_pkgname", mActivity.getPackageName());
+        mActivity.startActivity(intent);
     }
 
     @Override
@@ -124,26 +164,34 @@ public class FlutterOverlayWindowPlugin implements
     @Override
     public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
         mActivity = binding.getActivity();
+        activityBinding = binding;
         FlutterEngineGroup enn = new FlutterEngineGroup(context);
         DartExecutor.DartEntrypoint dEntry = new DartExecutor.DartEntrypoint(
                 FlutterInjector.instance().flutterLoader().findAppBundlePath(),
                 "overlayMain");
         FlutterEngine engine = enn.createAndRunEngine(context, dEntry);
         FlutterEngineCache.getInstance().put(OverlayConstants.CACHED_TAG, engine);
-        binding.addActivityResultListener(this);
+        activityBinding.addActivityResultListener(this);
     }
 
     @Override
     public void onDetachedFromActivityForConfigChanges() {
+        activityBinding.removeActivityResultListener(this);
+
+        activityBinding = null;
     }
 
     @Override
     public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding binding) {
+        binding.addActivityResultListener(this);
         this.mActivity = binding.getActivity();
     }
 
     @Override
     public void onDetachedFromActivity() {
+        activityBinding.removeActivityResultListener(this);
+
+        activityBinding = null;
     }
 
     @Override

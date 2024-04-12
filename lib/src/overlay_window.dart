@@ -102,6 +102,20 @@ class FlutterOverlayWindow {
     return _res;
   }
 
+  /// Update the overlay flag while the overlay in action
+  static Future<bool?> updateDraggable(bool draggable) async {
+    final bool? _res = await _overlayChannel
+        .invokeMethod<bool?>('updateDraggable', {'draggable': draggable});
+    return _res;
+  }
+
+  /// Update the overlay flag while the overlay in action
+  static Future<bool?> centerView() async {
+    final bool? _res = await _overlayChannel
+        .invokeMethod<bool?>('centerView');
+    return _res;
+  }
+
   /// Update the overlay size in the screen
   static Future<bool?> resizeOverlay(int width, int height) async {
     final bool? _res = await _overlayChannel.invokeMethod<bool?>(
@@ -123,5 +137,32 @@ class FlutterOverlayWindow {
   /// Dispose overlay stream
   static void disposeOverlayListener() {
     _controller.close();
+  }
+
+  /// Refresh location in screen
+  static Future<bool> refreshLocationView() async {
+    final bool? _res = await _overlayChannel.invokeMethod<bool?>('refreshLocationView');
+    return _res ?? false;
+  }
+
+  /// Get the screen size
+  static Future<int> screenHeight() async {
+    final int _res = await _overlayChannel.invokeMethod<int?>(
+        'screenHeight'
+    ) ?? 1999;
+    return _res;
+  }
+
+  static Future<bool> isShowOnLockScreenPermissionEnable() async {
+    final bool _res = await _channel.invokeMethod<bool?>(
+        'isShowOnLockScreenPermissionEnable'
+    ) ?? true;
+    return _res;
+  }
+
+  static Future<void> openXiaomiOtherSettings() async {
+    await _channel.invokeMethod<bool?>(
+        'openXiaomiOtherSettings'
+    );
   }
 }

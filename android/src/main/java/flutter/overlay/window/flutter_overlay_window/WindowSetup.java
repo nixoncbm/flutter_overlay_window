@@ -46,6 +46,9 @@ public abstract class WindowSetup {
             flag = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL;
         }
     }
+    static void setDraggable(boolean draggable) {
+        enableDrag = draggable;
+    }
 
     static void setGravityFromAlignment(String alignment) {
         if (alignment.equalsIgnoreCase("topLeft")) {
