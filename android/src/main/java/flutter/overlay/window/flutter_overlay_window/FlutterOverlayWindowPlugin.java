@@ -1,22 +1,22 @@
 package flutter.overlay.window.flutter_overlay_window;
 
 import android.app.Activity;
-import android.app.AppOpsManager;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Binder;
 import android.os.Build;
 import android.provider.Settings;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
+import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationManagerCompat;
 
-import java.lang.reflect.Method;
+import java.util.Map;
 
 import io.flutter.FlutterInjector;
 import io.flutter.embedding.engine.FlutterEngine;
@@ -41,8 +41,6 @@ public class FlutterOverlayWindowPlugin implements
     private MethodChannel channel;
     private Context context;
     private Activity mActivity;
-
-    private ActivityPluginBinding activityBinding;
     private BasicMessageChannel<Object> messenger;
     private Result pendingResult;
     final int REQUEST_CODE_FOR_OVERLAY_PERMISSION = 1248;
@@ -61,6 +59,7 @@ public class FlutterOverlayWindowPlugin implements
         WindowSetup.messenger.setMessageHandler(this);
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.N)
     @Override
     public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
         pendingResult = result;
@@ -88,6 +87,10 @@ public class FlutterOverlayWindowPlugin implements
             String notificationVisibility = call.argument("notificationVisibility");
             boolean enableDrag = call.argument("enableDrag");
             String positionGravity = call.argument("positionGravity");
+            Map<String, Integer> startPosition = call.argument("startPosition");
+            int startX = startPosition != null ? startPosition.getOrDefault("x", OverlayConstants.DEFAULT_XY) : OverlayConstants.DEFAULT_XY;
+            int startY = startPosition != null ? startPosition.getOrDefault("y", OverlayConstants.DEFAULT_XY) : OverlayConstants.DEFAULT_XY;
+
 
             WindowSetup.width = width != null ? width : -1;
             WindowSetup.height = height != null ? height : -1;
@@ -102,57 +105,33 @@ public class FlutterOverlayWindowPlugin implements
             final Intent intent = new Intent(context, OverlayService.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            intent.putExtra("startX", startX);
+            intent.putExtra("startY", startY);
             context.startService(intent);
             result.success(null);
         } else if (call.method.equals("isOverlayActive")) {
             result.success(OverlayService.isRunning);
             return;
+        } else if (call.method.equals("isOverlayActive")) {
+            result.success(OverlayService.isRunning);
+            return;
+        } else if (call.method.equals("moveOverlay")) {
+            int x = call.argument("x");
+            int y = call.argument("y");
+            result.success(OverlayService.moveOverlay(x, y));
+        } else if (call.method.equals("getOverlayPosition")) {
+            result.success(OverlayService.getCurrentPosition());
         } else if (call.method.equals("closeOverlay")) {
             if (OverlayService.isRunning) {
                 final Intent i = new Intent(context, OverlayService.class);
-                i.putExtra(OverlayService.INTENT_EXTRA_IS_CLOSE_WINDOW, true);
-                context.startService(i);
+                context.stopService(i);
                 result.success(true);
             }
-            return;
-        } else if (call.method.equals("isShowOnLockScreenPermissionEnable")) {
-            result.success(isShowOnLockScreenPermissionEnable());
-            return;
-        } else if (call.method.equals("openXiaomiOtherSettings")) {
-            openXiaomiOtherSettings();
-            result.success(null);
             return;
         } else {
             result.notImplemented();
         }
 
-    }
-
-    private boolean isShowOnLockScreenPermissionEnable() {
-        try {
-            AppOpsManager manager = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
-            Method method = AppOpsManager.class.getDeclaredMethod(
-                    "checkOpNoThrow",
-                    int.class,
-                    int.class,
-                    String.class
-            );
-            int result = (int) method.invoke(manager, 10020, Binder.getCallingUid(), context.getPackageName());
-            return AppOpsManager.MODE_ALLOWED == result;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    private void openXiaomiOtherSettings(){
-        Intent intent = new Intent("miui.intent.action.APP_PERM_EDITOR");
-        intent.setClassName(
-                "com.miui.securitycenter",
-                "com.miui.permcenter.permissions.PermissionsEditorActivity"
-        );
-        intent.putExtra("extra_pkgname", mActivity.getPackageName());
-        mActivity.startActivity(intent);
     }
 
     @Override
@@ -164,34 +143,27 @@ public class FlutterOverlayWindowPlugin implements
     @Override
     public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
         mActivity = binding.getActivity();
-        activityBinding = binding;
-        FlutterEngineGroup enn = new FlutterEngineGroup(context);
-        DartExecutor.DartEntrypoint dEntry = new DartExecutor.DartEntrypoint(
-                FlutterInjector.instance().flutterLoader().findAppBundlePath(),
-                "overlayMain");
-        FlutterEngine engine = enn.createAndRunEngine(context, dEntry);
-        FlutterEngineCache.getInstance().put(OverlayConstants.CACHED_TAG, engine);
-        activityBinding.addActivityResultListener(this);
+        if (FlutterEngineCache.getInstance().get(OverlayConstants.CACHED_TAG) == null) {
+            FlutterEngineGroup enn = new FlutterEngineGroup(context);
+            DartExecutor.DartEntrypoint dEntry = new DartExecutor.DartEntrypoint(
+                    FlutterInjector.instance().flutterLoader().findAppBundlePath(),
+                    "overlayMain");
+            FlutterEngine engine = enn.createAndRunEngine(context, dEntry);
+            FlutterEngineCache.getInstance().put(OverlayConstants.CACHED_TAG, engine);
+        }
     }
 
     @Override
     public void onDetachedFromActivityForConfigChanges() {
-        activityBinding.removeActivityResultListener(this);
-
-        activityBinding = null;
     }
 
     @Override
     public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding binding) {
-        binding.addActivityResultListener(this);
         this.mActivity = binding.getActivity();
     }
 
     @Override
     public void onDetachedFromActivity() {
-        activityBinding.removeActivityResultListener(this);
-
-        activityBinding = null;
     }
 
     @Override

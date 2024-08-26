@@ -29,12 +29,6 @@ class _TrueCallerOverlayState extends State<TrueCallerOverlay> {
   @override
   void initState() {
     super.initState();
-    FlutterOverlayWindow.overlayListener.listen((event) {
-      log("$event");
-      setState(() {
-        isGold = !isGold;
-      });
-    });
   }
 
   @override
@@ -55,8 +49,12 @@ class _TrueCallerOverlayState extends State<TrueCallerOverlay> {
           ),
           child: GestureDetector(
             onTap: () {
-              FlutterOverlayWindow.shareData(
-                  "Heyy this is a data from the overlay");
+              setState(() {
+                isGold = !isGold;
+              });
+              FlutterOverlayWindow.getOverlayPosition().then((value) {
+                log("Overlay Position: $value");
+              });
             },
             child: Stack(
               children: [
@@ -84,19 +82,19 @@ class _TrueCallerOverlayState extends State<TrueCallerOverlay> {
                     ),
                     const Spacer(),
                     const Divider(color: Colors.black54),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12.0),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
+                            children: [
                               Text("+216 21065826"),
                               Text("Last call - 1 min ago"),
                             ],
                           ),
-                          const Text(
+                          Text(
                             "Flutter Overlay",
                             style: TextStyle(
                                 fontSize: 15.0, fontWeight: FontWeight.bold),
